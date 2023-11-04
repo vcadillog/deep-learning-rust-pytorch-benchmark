@@ -1,0 +1,6 @@
+**/Cargo.lock
+**/.git
+**/target
+**/debug
+**/__pycache__
+**/.rustc_info.json

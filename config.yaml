@@ -1,0 +1,26 @@
+epochs: 10
+shuffle: true
+image_dim: 784
+labels: 10
+units: 32
+batch_size: 256
+test_batch_size: 1
+runs: 3
+learning_rate: 0.001
+layers_cpu: 
+  - 1
+  - 3
+  - 5
+  - 7
+  - 9
+layers_cuda:
+  - 7
+  - 9
+  - 12
+  - 14
+  - 16
+use_cuda:
+  - true
+  - false
+log_dir: '../logs'
+data_path: '../data'
