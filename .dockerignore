@@ -4,4 +4,4 @@
 **/debug
 **/__pycache__
 **/.rustc_info.json
-
+**/release
