@@ -19,8 +19,9 @@ layers_cuda:
   - 12
   - 14
   - 16
+  - 18
 use_cuda:
-  # - true
+  - true
   - false
 log_dir: '../logs'
 data_path: '../data'
