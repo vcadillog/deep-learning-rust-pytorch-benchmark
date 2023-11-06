@@ -1,6 +1,9 @@
-use tch::{nn, nn::Module};
+use tch::nn;
 
-pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidden_layers: i64) -> impl Module {
+pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidden_layers: i64) -> nn::Sequential{
+    if hidden_layers <= 0{ 
+        panic!("Layers should be positive");
+    }
     let mut seq = nn::seq();
     seq = seq.add(nn::linear(vs / "input_layer", 
             input_dim,
@@ -35,11 +38,6 @@ pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidde
                     Default::default()))
                 .add_fn(|xs| xs.relu());
             }
-    }
-    else if hidden_layers == 1{
-    }
-    else{ 
-        panic!("Layers should be positive");
     }
     seq.add(nn::linear(vs / "output_layer", units, output_dim, Default::default()))
 }

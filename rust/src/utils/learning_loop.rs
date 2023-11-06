@@ -1,6 +1,7 @@
 use anyhow::Result;
-use tch::{nn,Device, nn::Module, nn::OptimizerConfig,Tensor,Kind, no_grad};
-use std::{time::Instant, cell::Cell, iter::Iterator}; 
+use tch::{nn,Device, nn::ModuleT, nn::OptimizerConfig, vision::dataset::Dataset,
+    Tensor, Kind, nn::Sequential};
+use std::{time::Instant, cell::{Cell, RefCell}};
 
 use crate::utils::network::network;
 use crate::settings::Settings;
@@ -8,13 +9,13 @@ use crate::utils::logger::{LogConsole, LogCSV};
 
 pub struct LearningAlgorithm{
     config: Settings,
-    train_dataset: Vec<(Tensor,Tensor)>,
-    test_dataset: Vec<(Tensor,Tensor)>,
+    dataset: Dataset,
     device: Cell<Device>,
+    model: RefCell<Sequential>,
 }
 
-impl LearningAlgorithm{    
-    fn train_epoch(&mut self, hidden_layers: &i64) -> Result<(impl Module, f64, f64)>{
+impl LearningAlgorithm {    
+    fn train_epoch(&self, hidden_layers: &i64) -> Result<(f64, f64)>{
         let vs = nn::VarStore::new(self.device.get());
         let net = network(&vs.root(), self.config.image_dim, 
                           self.config.labels, 
@@ -22,57 +23,69 @@ impl LearningAlgorithm{
                           hidden_layers.clone());
         let mut optimizer = nn::Adam::default()
                                      .build(&vs, self.config.learning_rate)?;
-        let mut loss = Tensor::zeros([0],(Kind::Float, self.device.get()));
+        let mut loss = Tensor::zeros([0],(Kind::Float, vs.device()));
+
+        let dataset: Vec<_>= if self.config.shuffle{
+            self.dataset.train_iter(self.config.batch_size)
+                .shuffle().to_device(vs.device()).collect()
+        }
+        else{
+            self.dataset.train_iter(self.config.batch_size)
+                .to_device(vs.device()).collect()
+       };
         let training_time = Instant::now();
         
         for _ in 0..self.config.epochs {  
-            for (images, labels) in self.train_dataset.iter(){
-
-                let images = &images.to(self.device.get());
-                let labels = &labels.to(self.device.get());
-                loss = net.forward(&images)
+            for (images, labels) in &dataset{
+                loss = net.forward_t(&images,true)
                           .cross_entropy_for_logits(&labels);            
+                optimizer.zero_grad();
                 optimizer.backward_step(&loss);
             }
         }
-
-        Ok((net ,loss.double_value(&[]), training_time.elapsed().as_secs_f64()))
+        let training_time = training_time.elapsed().as_secs_f64();
+        self.model.replace(net);
+        Ok((loss.double_value(&[]), training_time))
     }
 
-    fn test_model(&mut self, net: impl Module) -> Result<(f64, f64, f64)>{ 
-        // let size = self.dataset.test_images.size()[0] as f64;
+    fn test_model(&self) -> Result<(f64, f64, f64)>{ 
         let mut loss = 0.;
         let mut accuracy = 0.;
+        let mut size = 0;
+
+        let dataset :Vec<_>= if self.config.shuffle{
+            self.dataset.test_iter(self.config.test_batch_size)
+                .shuffle().to_device(self.device.get()).collect()
+        }
+        else{
+            self.dataset.test_iter(self.config.test_batch_size)
+                .to_device(self.device.get()).collect()
+        };
         let test_time = Instant::now();
 
-        let mut size : f64 = 0.;
-        for (images, labels) in self.test_dataset.iter(){
-
-            let images = &images.to(self.device.get());
-            let labels = &labels.to(self.device.get());
-            no_grad(|| {
-                let out_validation = net.forward(&images);
-                loss += out_validation.cross_entropy_for_logits(&labels).double_value(&[]);
-                accuracy += 100.*out_validation.accuracy_for_logits(&labels).double_value(&[]);
-            });
-            size += 1.;
+        for (images, labels) in &dataset{
+            let out_validation = self.model.borrow_mut().forward_t(&images, false);
+            loss += out_validation.cross_entropy_for_logits(&labels).double_value(&[]);
+            accuracy += out_validation.accuracy_for_logits(&labels).double_value(&[]);
+            size += 1;
         }
+        let size = size as f64;
 
-        Ok((accuracy/size, loss/size, test_time.elapsed().as_secs_f64()))
+        Ok((100.*accuracy/size, loss/size, test_time.elapsed().as_secs_f64()))
     }
 
-    fn run_on_device(&mut self, cuda: bool) -> Result<()>{
+    fn run_on_device(&self, cuda: bool) -> Result<()>{
         let device_name;
         let layers_list;
         if !cuda {
             device_name = "cpu";
             self.device.set(Device::Cpu);
-            layers_list = self.config.layers_cpu.clone();
+            layers_list = &self.config.layers_cpu;
         }
         else if cuda{
             device_name = "cuda";
             self.device.set(Device::Cuda(0));
-            layers_list = self.config.layers_cuda.clone();
+            layers_list = &self.config.layers_cuda;
         }
         else{
             panic!("Unknown device");        
@@ -91,11 +104,11 @@ impl LearningAlgorithm{
         let log_console = LogConsole::new(labels.clone());
 
 
-        for layers in &layers_list{
+        for layers in layers_list{
             for test in 0..self.config.runs{
-                let Ok((net, loss, training_time))  = self.train_epoch(layers) 
+                let Ok((loss, training_time))  = self.train_epoch(layers) 
                     else { panic!("Unknown error")};
-                let Ok((acc, test_loss, test_time)) = self.test_model(net) 
+                let Ok((acc, test_loss, test_time)) = self.test_model() 
                     else {panic!("Unknown error")};
                 
                 let data = vec![layers.to_string(), 
@@ -113,8 +126,8 @@ impl LearningAlgorithm{
         Ok(())
     }
 
-    pub fn run(&mut self){
-        for cuda in self.config.use_cuda.clone(){
+    pub fn run(&self){
+        for cuda in &self.config.use_cuda{
             let _  = self.run_on_device(cuda.clone());
         }
     }
@@ -123,24 +136,13 @@ impl LearningAlgorithm{
         let mut dir_path: String = configuration.data_path.to_owned();
         dir_path.push_str("/MNIST/raw");
 
-        let Ok(data) = tch::vision::mnist::load_dir(dir_path) 
+        let Ok(data) = tch::vision::mnist::load_dir(dir_path)
             else { panic!("Data not found")};
-        
-        let(train_dataset, test_dataset) = 
-        if configuration.shuffle{
-            (data.train_iter(configuration.batch_size).shuffle().collect::<Vec<_>>(),
-            data.test_iter(configuration.test_batch_size).shuffle().collect::<Vec<_>>())
-        }
-        else{
-            (data.train_iter(configuration.batch_size).collect::<Vec<_>>(),
-            data.test_iter(configuration.test_batch_size).collect::<Vec<_>>())
-        };
-
         LearningAlgorithm{
             config: configuration,
-            train_dataset,
-            test_dataset,
+            dataset: data,
             device: Cell::new(Device::Cpu),
+            model: RefCell::new(nn::seq()),
         }
     }
 }

@@ -33,7 +33,7 @@ class LearningAlgorithm:
         optimizer = optim.Adam(self.model.parameters(), lr=self.LEARNING_RATE)
         training_time = time.time()
 
-        for epoch in range(self.EPOCHS):
+        for _ in range(self.EPOCHS):
             for (_, (train_data, train_target)) in enumerate(self.train_loader):
                 self.model.train()
                 train_data = train_data.to(self.device)
