@@ -15,7 +15,7 @@ ENV CPATH="$CPATH:$LIBTORCH_LIB:$LIBTORCH_INCLUDE:$LIBTORCH_INCLUDE/torch/csrc/a
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBTORCH_LIB"
 
 
-WORKDIR /workspaces/
+WORKDIR /workspace/
 COPY ./config.yaml .
 COPY ./data ./data
 COPY ./logs ./logs

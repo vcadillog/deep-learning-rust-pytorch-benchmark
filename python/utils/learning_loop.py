@@ -68,7 +68,9 @@ class LearningAlgorithm:
     def run_on_device(self):
 
         logs = Logger()
-        log_csv = LogCSV()
+
+        path = self.LOG_DIR + '/' + self.FILENAME + self.device_name
+        log_csv = LogCSV(path)
         logs.set_names(['hidden_layers', 'run', 'training_loss',
                         'training_time', 'test_loss', 'test_accuracy',
                         'test_time'])
@@ -83,8 +85,6 @@ class LearningAlgorithm:
                 logs.get()
                 logs.strategy = log_csv
                 logs.get()
-
-        log_csv.save_csv(self.LOG_DIR + '/' + self.FILENAME + self.device_name)
 
     def run(self):
         for use_cuda in self.USE_CUDA:

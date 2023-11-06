@@ -35,19 +35,18 @@ class Strategy(ABC):
 
 
 class LogCSV(Strategy):
-    def __init__(self) -> None:
+    def __init__(self, path) -> None:
         self.df = pd.DataFrame()
+        self.path = path + '.csv'
 
     def clean_data(self):
         self.df = pd.DataFrame()
 
-    def save_csv(self, labels: str):
-        self.df = self.df.reset_index(drop=True)
-        self.df.to_csv(labels+'.csv')
-
     def log(self, data: List, labels: List) -> None:
         tmp = pd.DataFrame([data], columns=labels)
         self.df = pd.concat([self.df, tmp])
+        self.df = self.df.reset_index(drop=True)
+        self.df.to_csv(self.path)
 
 
 class LogConsole(Strategy):
