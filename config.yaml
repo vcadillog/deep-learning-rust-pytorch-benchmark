@@ -14,14 +14,14 @@ layers_cpu:
   - 7
   - 9
 layers_cuda:
-  - 7
-  - 9
-  - 12
-  - 14
-  - 16
   - 18
+  - 16
+  - 14
+  - 12
+  - 9
+  - 7
 use_cuda:
-  # - true
+  - true
   - false
 log_dir: '../logs'
 data_path: '../data'

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tch::{nn,Device, nn::ModuleT, nn::OptimizerConfig, vision::dataset::Dataset,
-    Tensor, Kind, nn::Sequential};
+Tensor, Kind, nn::Sequential};
 use std::{time::Instant, cell::{Cell, RefCell}};
 
 use crate::utils::network::network;
@@ -15,14 +15,14 @@ pub struct LearningAlgorithm{
 }
 
 impl LearningAlgorithm {    
-    fn train_epoch(&self, hidden_layers: &i64) -> Result<(f64, f64)>{
+    fn train_epoch(&self, hidden_layers: &u32) -> Result<(f64, f64)>{
         let vs = nn::VarStore::new(self.device.get());
-        let net = network(&vs.root(), self.config.image_dim, 
-                          self.config.labels, 
-                          self.config.units,
-                          hidden_layers.clone());
+        self.model.replace(network(&vs.root(), self.config.image_dim, 
+                                   self.config.labels, 
+                                   self.config.units,
+                                   hidden_layers.clone()));
         let mut optimizer = nn::Adam::default()
-                                     .build(&vs, self.config.learning_rate)?;
+            .build(&vs, self.config.learning_rate)?;
         let mut loss = Tensor::zeros([0],(Kind::Float, vs.device()));
 
         let dataset: Vec<_>= if self.config.shuffle{
@@ -32,20 +32,18 @@ impl LearningAlgorithm {
         else{
             self.dataset.train_iter(self.config.batch_size)
                 .to_device(vs.device()).collect()
-       };
+        };
         let training_time = Instant::now();
-        
+
         for _ in 0..self.config.epochs {  
             for (images, labels) in &dataset{
-                loss = net.forward_t(&images,true)
-                          .cross_entropy_for_logits(&labels);            
+                loss = self.model.borrow_mut().forward_t(&images,true)
+                    .cross_entropy_for_logits(&labels);            
                 optimizer.zero_grad();
                 optimizer.backward_step(&loss);
             }
         }
-        let training_time = training_time.elapsed().as_secs_f64();
-        self.model.replace(net);
-        Ok((loss.double_value(&[]), training_time))
+        Ok((loss.double_value(&[]), training_time.elapsed().as_secs_f64()))
     }
 
     fn test_model(&self) -> Result<(f64, f64, f64)>{ 
@@ -92,14 +90,14 @@ impl LearningAlgorithm {
         };
 
         let labels = vec!["hidden_layers", "run", "training_loss", 
-                          "training_time", "test_loss", "test_accuracy", 
-                          "test_time"];
+        "training_time", "test_loss", "test_accuracy", 
+        "test_time"];
         let mut dir_path: String = self.config.log_dir.to_owned();
 
         dir_path.push_str("/rust_log_");
         dir_path.push_str(&device_name);
         dir_path.push_str(".csv");
-       
+
         let mut log_csv = LogCSV::new(dir_path, labels.clone());
         let log_console = LogConsole::new(labels.clone());
 
@@ -110,7 +108,7 @@ impl LearningAlgorithm {
                     else { panic!("Unknown error")};
                 let Ok((acc, test_loss, test_time)) = self.test_model() 
                     else {panic!("Unknown error")};
-                
+
                 let data = vec![layers.to_string(), 
                                 test.to_string(),
                                 loss.to_string(), 
@@ -138,11 +136,11 @@ impl LearningAlgorithm {
 
         let Ok(data) = tch::vision::mnist::load_dir(dir_path)
             else { panic!("Data not found")};
-        LearningAlgorithm{
-            config: configuration,
-            dataset: data,
-            device: Cell::new(Device::Cpu),
-            model: RefCell::new(nn::seq()),
-        }
+            LearningAlgorithm{
+                config: configuration,
+                dataset: data,
+                device: Cell::new(Device::Cpu),
+                model: RefCell::new(nn::seq()),
+            }
     }
 }

@@ -1,6 +1,7 @@
 use tch::nn;
 
-pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidden_layers: i64) -> nn::Sequential{
+pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidden_layers: u32) -> nn::Sequential{
+    let hidden_layers = hidden_layers as u32;
     if hidden_layers <= 0{ 
         panic!("Layers should be positive");
     }
@@ -18,16 +19,16 @@ pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidde
 
         for layers in 0..hidden_layers {            
             if layers < hidden_layers/2 {
-                input_units = i64::pow(2,layers as u32); 
-                output_units = i64::pow(2,(layers+1) as u32);
+                input_units = i64::pow(2,layers); 
+                output_units = i64::pow(2,layers+1);
             } 
             else if hidden_layers%2 == 1 && layers == hidden_layers/2{
-                input_units = i64::pow(2,layers as u32); 
+                input_units = i64::pow(2,layers); 
                 output_units = input_units; 
             }
             else if layers >= hidden_layers/2{
-                input_units = i64::pow(2,(hidden_layers-layers) as u32); 
-                output_units = i64::pow(2,(hidden_layers-layers-1) as u32); 
+                input_units = i64::pow(2,hidden_layers-layers); 
+                output_units = i64::pow(2,hidden_layers-layers-1); 
             }
             else {
                 panic!("Unknown error");
