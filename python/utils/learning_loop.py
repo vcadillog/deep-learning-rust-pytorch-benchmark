@@ -27,15 +27,16 @@ class LearningAlgorithm:
         self.FILENAME = 'python_log_'
 
     def train_epoch(self, layers):
+        training_time = time.time()
 
         self.model = Network(self.IMAGE_DIM, self.LABELS, self.UNITS, layers)
         self.model = self.model.to(self.device)
         optimizer = optim.Adam(self.model.parameters(), lr=self.LEARNING_RATE)
-        training_time = time.time()
 
         for _ in range(self.EPOCHS):
             for (_, (train_data, train_target)) in enumerate(self.train_loader):
                 self.model.train()
+                train_data = train_data.view(-1, self.IMAGE_DIM)
                 train_data = train_data.to(self.device)
                 train_target = train_target.to(self.device)
                 output = self.model(train_data)
@@ -48,13 +49,15 @@ class LearningAlgorithm:
         return loss.item(), training_time
 
     def test_model(self):
+        test_time = time.time()
+
         test_size = self.test_loader.__len__()
         self.model.eval()
         accuracy = 0
         loss = 0
-        test_time = time.time()
 
         for (_, (test_data, test_target)) in enumerate(self.test_loader):
+            test_data = test_data.view(-1, self.IMAGE_DIM)
             test_data = test_data.to(self.device)
             test_target = test_target.to(self.device)
             with th.no_grad():

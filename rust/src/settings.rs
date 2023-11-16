@@ -31,4 +31,3 @@ impl Settings{
         return Ok(settings);
     }
 }
-

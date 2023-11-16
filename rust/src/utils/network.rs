@@ -1,7 +1,6 @@
 use tch::nn;
 
 pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidden_layers: u32) -> nn::Sequential{
-    let hidden_layers = hidden_layers as u32;
     if hidden_layers <= 0{ 
         panic!("Layers should be positive");
     }
@@ -33,9 +32,11 @@ pub fn network(vs: &nn::Path, input_dim: i64, output_dim: i64, units: i64, hidde
             else {
                 panic!("Unknown error");
             }
+            input_units *= units;
+            output_units *= units;
             seq = seq.add(nn::linear(vs, 
-                    input_units*units,
-                    output_units*units, 
+                    input_units,
+                    output_units, 
                     Default::default()))
                 .add_fn(|xs| xs.relu());
             }

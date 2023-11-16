@@ -16,8 +16,11 @@ pub struct LearningAlgorithm{
 
 impl LearningAlgorithm {    
     fn train_epoch(&self, hidden_layers: &u32) -> Result<(f64, f64)>{
+        let training_time = Instant::now();
+
         let vs = nn::VarStore::new(self.device.get());
-        self.model.replace(network(&vs.root(), self.config.image_dim, 
+        self.model.replace(network(&vs.root(),
+                                   self.config.image_dim, 
                                    self.config.labels, 
                                    self.config.units,
                                    hidden_layers.clone()));
@@ -25,7 +28,7 @@ impl LearningAlgorithm {
             .build(&vs, self.config.learning_rate)?;
         let mut loss = Tensor::zeros([0],(Kind::Float, vs.device()));
 
-        let dataset: Vec<_>= if self.config.shuffle{
+        let dataset: Vec<_> = if self.config.shuffle{
             self.dataset.train_iter(self.config.batch_size)
                 .shuffle().to_device(vs.device()).collect()
         }
@@ -33,7 +36,6 @@ impl LearningAlgorithm {
             self.dataset.train_iter(self.config.batch_size)
                 .to_device(vs.device()).collect()
         };
-        let training_time = Instant::now();
 
         for _ in 0..self.config.epochs {  
             for (images, labels) in &dataset{
@@ -47,11 +49,12 @@ impl LearningAlgorithm {
     }
 
     fn test_model(&self) -> Result<(f64, f64, f64)>{ 
+        let test_time = Instant::now();
         let mut loss = 0.;
         let mut accuracy = 0.;
         let mut size = 0;
 
-        let dataset :Vec<_>= if self.config.shuffle{
+        let dataset :Vec<_> = if self.config.shuffle{
             self.dataset.test_iter(self.config.test_batch_size)
                 .shuffle().to_device(self.device.get()).collect()
         }
@@ -59,7 +62,6 @@ impl LearningAlgorithm {
             self.dataset.test_iter(self.config.test_batch_size)
                 .to_device(self.device.get()).collect()
         };
-        let test_time = Instant::now();
 
         for (images, labels) in &dataset{
             let out_validation = self.model.borrow_mut().forward_t(&images, false);
